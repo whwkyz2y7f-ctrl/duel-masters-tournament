@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111">
+<title>デュエマ一人回し大会</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#171717;background:#f2f2f7}
+*{box-sizing:border-box}body{margin:0}.app{max-width:600px;margin:auto;padding:18px 14px 40px}
+header{padding:12px 4px 18px}h1{font-size:25px;margin:0 0 5px}.muted{color:#777;font-size:13px}
+.card{background:#fff;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 2px 12px #0000000d}
+button{width:100%;border:0;border-radius:14px;padding:15px;margin-top:9px;font-size:16px;font-weight:700;background:#111;color:#fff}
+button.alt{background:#e8e8ed;color:#111}button:disabled{opacity:.45}
+.match{border:1px solid #ddd;border-radius:16px;padding:13px;margin:10px 0}.deck{font-size:18px;font-weight:750;padding:8px 3px}
+.vs{text-align:center;color:#888;font-size:12px}.seed{background:#f4f4f6;border-radius:12px;padding:12px;margin:10px 0}
+.champ{text-align:center;font-size:25px;padding:22px}.champ b{font-size:28px}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.pill{background:#eee;border-radius:99px;padding:5px 9px;font-size:12px}
+.stat{padding:10px 0;border-bottom:1px solid #eee}.stat:last-child{border:0}
+</style></head><body><main class="app">
+<header><h1>🏆 デュエマ一人回し大会</h1><div class="muted">固定10デッキ・シングルエリミネーション</div></header>
+<section class="card"><button id="start">大会開始 🎲</button><button class="alt" id="reset">通算成績をリセット</button></section>
+<section id="game"></section>
+<section class="card"><div class="row"><h2 style="margin:0">📊 通算成績</h2><span class="pill" id="count">0大会</span></div><div id="stats"></div></section>
+</main>
+<script>
+const DECKS=["フィオナアカシック","バイケンダンテ","赤単速攻","黒緑ジョーカーズ","ロージアダンテ","青魔道具","5Cザーディ","5Cバラモルド","ドラグナー","Vチャロン"];
+const KEY="dm_solo_stats_v2";
+let S=JSON.parse(localStorage.getItem(KEY)||"null")||{events:0,decks:{}};
+DECKS.forEach(d=>S.decks[d] ||= {w:0,l:0});
+let pool=[],winners=[],round=0,bye=null;
+
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem(KEY,JSON.stringify(S));renderStats()}
+function shuffle(a){let x=[...a];for(let i=x.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]]}return x}
+function start(){
+ pool=shuffle(DECKS);winners=[];round=1;bye=null;
+ $("game").innerHTML="";renderRound();
+}
+function title(){
+ if(round===1)return "1回戦";
+ if(pool.length===5)return "2回戦（1デッキはシード）";
+ if(pool.length===4)return "準決勝";
+ if(pool.length===2)return "決勝";
+ return "";
+}
+function renderRound(){
+ const box=document.createElement("section");box.className="card";
+ box.innerHTML=`<h2>${title()}</h2><div class="muted">${pool.length}デッキ</div><div id="round"></div>`;
+ $("game").replaceChildren(box);
+ const r=box.querySelector("#round");
+ winners=[];
+ let pairs;
+ if(pool.length===5){
+   const a=shuffle(pool);bye=a.pop();winners.push(bye);
+   r.insertAdjacentHTML("beforeend",`<div class="seed">🎟️ シード<br><b>${bye}</b></div>`);
+   pairs=[[a[0],a[1]],[a[2],a[3]]];
+ }else{
+   const a=shuffle(pool);pairs=[];
+   for(let i=0;i<a.length;i+=2)pairs.push([a[i],a[i+1]]);
+ }
+ pairs.forEach(([a,b])=>{
+   const m=document.createElement("div");m.className="match";
+   m.innerHTML=`<div class="deck">${a}</div><div class="vs">VS</div><div class="deck">${b}</div>
+   <button data-w="${a}" data-l="${b}">🏆 ${a} の勝ち</button>
+   <button class="alt" data-w="${b}" data-l="${a}">🏆 ${b} の勝ち</button>`;
+   m.querySelectorAll("button").forEach(btn=>btn.onclick=()=>choose(btn,m));
+   r.appendChild(m);
+ });
+}
+function choose(btn,m){
+ if(m.dataset.done)return;m.dataset.done="1";
+ m.querySelectorAll("button").forEach(x=>x.disabled=true);
+ const w=btn.dataset.w,l=btn.dataset.l;
+ winners.push(w);S.decks[w].w++;S.decks[l].l;S.decks[l].l++;
+ if([...document.querySelectorAll(".match")].filter(x=>x.dataset.done==="1").length===document.querySelectorAll(".match").length){
+   pool=winners;
+   if(pool.length===1){finish(pool[0]);return}
+   round++;setTimeout(renderRound,250);
+ }
+ save();
+}
+function finish(c){
+ S.events++;save();
+ $("game").innerHTML=`<section class="card champ">🏆<br><b>${c}</b><br>優勝！<button id="again">もう一度大会</button></section>`;
+ $("again").onclick=start;
+}
+function renderStats(){
+ $("count").textContent=S.events+"大会";
+ $("stats").innerHTML=DECKS.map(d=>{
+   let s=S.decks[d],t=s.w+s.l,r=t?Math.round(s.w/t*100):0;
+   return `<div class="stat"><div class="row"><b>${d}</b><span>${s.w}勝 ${s.l}敗</span></div><div class="muted">勝率 ${r}%</div></div>`;
+ }).join("");
+}
+$("start").onclick=start;
+$("reset").onclick=()=>{if(confirm("通算成績をリセットしますか？")){S={events:0,decks:{}};DECKS.forEach(d=>S.decks[d]={w:0,l:0});save()}};
+renderStats();
+</script></body></html>
