@@ -26,18 +26,18 @@ const DECKS=["フィオナアカシック","バイケンダンテ","赤単速攻
 const KEY="dm_solo_stats_v2";
 let S=JSON.parse(localStorage.getItem(KEY)||"null")||{events:0,decks:{}};
 DECKS.forEach(d=>S.decks[d] ||= {w:0,l:0});
-let pool=[],winners=[],round=0,bye=null;
+let pool=[],winners=[],round=0,byes=[];
 
 const $=id=>document.getElementById(id);
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderStats()}
 function shuffle(a){let x=[...a];for(let i=x.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]]}return x}
 function start(){
- pool=shuffle(DECKS);winners=[];round=1;bye=null;
+ pool=shuffle(DECKS);winners=[];round=1;byes=[];
  $("game").innerHTML="";renderRound();
 }
 function title(){
- if(round===1)return "1回戦";
- if(pool.length===5)return "2回戦（1デッキはシード）";
+ if(pool.length===10)return "1回戦";
+ if(pool.length===8)return "準々決勝";
  if(pool.length===4)return "準決勝";
  if(pool.length===2)return "決勝";
  return "";
@@ -48,13 +48,15 @@ function renderRound(){
  $("game").replaceChildren(box);
  const r=box.querySelector("#round");
  winners=[];
- let pairs;
- if(pool.length===5){
-   const a=shuffle(pool);bye=a.pop();winners.push(bye);
-   r.insertAdjacentHTML("beforeend",`<div class="seed">🎟️ シード<br><b>${bye}</b></div>`);
-   pairs=[[a[0],a[1]],[a[2],a[3]]];
+ let pairs=[];
+ const a=shuffle(pool);
+ if(pool.length===10){
+   // 10→8: 6デッキをシードにして2試合だけ行う
+   const seeded=a.slice(0,6);
+   winners.push(...seeded);
+   r.insertAdjacentHTML("beforeend",`<div class="seed">🎟️ シード（自動的に次のラウンドへ）<br><b>${seeded.join("・")}</b></div>`);
+   pairs=[[a[6],a[7]],[a[8],a[9]]];
  }else{
-   const a=shuffle(pool);pairs=[];
    for(let i=0;i<a.length;i+=2)pairs.push([a[i],a[i+1]]);
  }
  pairs.forEach(([a,b])=>{
@@ -70,7 +72,7 @@ function choose(btn,m){
  if(m.dataset.done)return;m.dataset.done="1";
  m.querySelectorAll("button").forEach(x=>x.disabled=true);
  const w=btn.dataset.w,l=btn.dataset.l;
- winners.push(w);S.decks[w].w++;S.decks[l].l;S.decks[l].l++;
+ winners.push(w);S.decks[w].w++;S.decks[l].l++;
  if([...document.querySelectorAll(".match")].filter(x=>x.dataset.done==="1").length===document.querySelectorAll(".match").length){
    pool=winners;
    if(pool.length===1){finish(pool[0]);return}
